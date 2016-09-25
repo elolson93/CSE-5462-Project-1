@@ -73,13 +73,13 @@ int main(int argc, char *argv[]) {
         
 	/* Send file size in 4 bytes */
 	SEND(sock, &num_bytes, 4, 0);
-	printf("Sent: %i bytes.\n\n", num_bytes);
+	printf("Sent size: %i bytes\n\n", num_bytes);
 	sleep(0.1);
 	
 
 	/* Send file name in 20 bytes */
 	SEND(sock, file_name, 20, 0);
-	printf("Sent: %s.\n\n", file_name);
+	printf("Sent name: %s\n\n", file_name);
 	sleep(0.1);
 
 	while(1)
@@ -91,7 +91,7 @@ int main(int argc, char *argv[]) {
 		if(num_read > 0)
 		{
 		   	SEND(sock, buf, num_read, 0);
-			printf("Sent: %s\n\n", buf);
+			printf("Sent message:\n\n");
 			sleep(0.1);
 		}
 
