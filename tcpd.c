@@ -17,11 +17,15 @@
 #define LOCAL_PORT 9999
 #define TROLL_PORT 8888
 #define LOCAL_ADDRESS "127.0.0.1"
+#define POLY 0x8408
+
+unsigned short crc16(char *data_p, unsigned short length);
 
 //Troll message struct
 typedef struct MyMessage {
 	struct sockaddr_in msg_header;
 	char body[MSS];
+	
 } MyMessage;
 
 //Local to tcpd message struct
@@ -143,16 +147,18 @@ int main(int argc, char *argv[])
 
 				if (tcpd_head.flag == 1) {
 					//forward the data to remote machine via troll
-					printf("Received message from client: %s\n\n", tcpd_head.body);
-
+					printf("Received message from client.\n");
+				
 					//create troll message
 					strcpy(message.body,tcpd_head.body);
 					message.msg_header = destaddr;
 
-					int amtToTroll = 0;
+					unsigned short chksum = crc16((char *)&message.body,sizeof(message.body));
+					printf("Checksum of message body: %hu\n", chksum);
 					
+					int amtToTroll = 0;
 					amtToTroll = sendto(troll_sock, (char *)&message, sizeof message, 0, (struct sockaddr *)&trolladdr, sizeof trolladdr);
-					printf("Sent message to troll: %s\n\n", message.body);
+					printf("Sent message to troll.\n\n");
 					if (amtToTroll != sizeof message) {
 						perror("totroll sendto");
 						exit(1);
@@ -236,7 +242,10 @@ int main(int argc, char *argv[])
 					perror("fromtroll recvfrom");
 					exit(1);
 				}
-				printf("Recieved message from troll: %s\n\n", message.body);
+				printf("Recieved message from troll.\n");
+
+				unsigned short chksum = crc16((char *)&message.body,sizeof(message.body));
+				printf("Checksum of message rec: %hu\n", chksum);
 
 				//forward to server
 				int amtToServer = 0;
@@ -244,7 +253,7 @@ int main(int argc, char *argv[])
 				strcpy(body, message.body);
 					
 				amtToServer = sendto(local_sock, (char *)&body, sizeof body, 0, (struct sockaddr *)&destaddr, sizeof destaddr);
-				printf("Sent message to server: %s\n\n", body);
+				printf("Sent message to server.\n\n");
 				if (amtToServer != sizeof body) {
 					perror("totroll sendto");
 					exit(1);
@@ -256,4 +265,43 @@ int main(int argc, char *argv[])
 		}
 	}
     
+}
+
+// SOURCE: http://www8.cs.umu.se/~isak/snippets/crc-16.c
+
+/*
+//                                      16   12   5
+// this is the CCITT CRC 16 polynomial X  + X  + X  + 1.
+// This works out to be 0x1021, but the way the algorithm works
+// lets us use 0x8408 (the reverse of the bit pattern).  The high
+// bit is always assumed to be set, thus we only use 16 bits to
+// represent the 17 bit value.
+*/
+
+unsigned short crc16(char *data_p, unsigned short length)
+{
+      unsigned char i;
+      unsigned int data;
+      unsigned int crc = 0xffff;
+
+      if (length == 0)
+            return (~crc);
+
+      do
+      {
+            for (i=0, data=(unsigned int)0xff & *data_p++;
+                 i < 8; 
+                 i++, data >>= 1)
+            {
+                  if ((crc & 0x0001) ^ (data & 0x0001))
+                        crc = (crc >> 1) ^ POLY;
+                  else  crc >>= 1;
+            }
+      } while (--length);
+
+      crc = ~crc;
+      data = crc;
+      crc = (crc << 8) | (data >> 8 & 0xff);
+
+      return (crc);
 }
