@@ -63,14 +63,14 @@ int main(int argc, char* argv[]) {
   		printf("%s\n", "Error: The size read returned less than 4");
   		exit(1);
   	}
-	printf("Recieved size is %d\n\n", fileSize);
+	printf("Recieved size: %d bytes\n\n", fileSize);
 
   	/* get the name of the file */
   	if (RECV(sock, fileName, sizeof(fileName), 0) < 20) {
   		printf("%s\n", "Error: The name read returned less than 20");
   		exit(1);
   	}
-	printf("Received name is: %s\n\n", fileName);
+	printf("Received name: %s\n\n", fileName);
 
   	/* create a directory if one does not already exist */  
 	if (stat("recvd", &st) == -1) {
@@ -89,7 +89,7 @@ int main(int argc, char* argv[]) {
   	int amtRead = 0;
   	while (amtReadTotal < fileSize) { 
   		amtRead = RECV(sock, readBuffer, sizeof(readBuffer), 0);
-		printf("Received: %s\n", readBuffer);
+		printf("Received message.\n\n");
   		amtReadTotal += amtRead;
   		if (amtRead < 0) {
   			fprintf(stderr, "%s\n\n", "Error reading from the connection stream. Server terminating");
