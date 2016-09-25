@@ -13,6 +13,8 @@
 #include <sys/select.h>
 #include <stdlib.h>
 #include <netinet/in.h>
+#include <string.h>
+#include <unistd.h>
 #define WAIT_TIME 1
 #define LISTENING_PORT 9090
 
@@ -94,15 +96,18 @@ void update_times(timer_node_t* list, int val, char op) {
 	}
 
 	while (NULL != list) {
+		//printf("%s\n", "In the update while");
 		if (op == '+') {
 			list->time += val; 
 		} else if (op == '-') {
+			//`printf("%s\n", "In the minus");
 			list->time -= val;
 		} else {
 			printf("%s\n", "ERROR: unrecognized operation.");
 			return;
 		}
 		list = list->next;
+		//printf("%s\n", "At the end of the update while");
 	}
 }
 
@@ -117,8 +122,8 @@ int insert_node(timer_node_t** head, timer_node_t* node) {
 	} 
 
 	timer_node_t* curr_node = *head;
-	timer_node_t* prev_node = *head;
-	
+	timer_node_t* prev_node = NULL;
+
 	while (NULL != curr_node && node->time > curr_node->time) {
 		node->time -= curr_node->time;
 		prev_node = curr_node;
@@ -221,7 +226,7 @@ void delete_node(int packet) {
 		printf("%s%d%s\n", "There was an issue deleting the node with " 
 			"packet number: ", packet, ". See above message.");
 	} else {
-		printf("%s%d%s\n", "Node with packet number: ", packet, " added "
+		printf("%s%d%s\n", "Node with packet number: ", packet, " deleted "
 			"successfully");	
 	}
 
@@ -236,21 +241,30 @@ int main(int argc, char *argv[]) {
 
 	int sock;
 	struct sockaddr_in sin_addr;
-	char read_buf[1000] = {0};
 
-	if((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0){
+	if((sock = socket(AF_INET, SOCK_DGRAM, 0)) < 0){
     	perror("Error opening socket");
     	exit(1);
     }
 
     sin_addr.sin_family = AF_INET;
     sin_addr.sin_port = htons(LISTENING_PORT);
-    sin_addr.sin_addr.s_addr = INADDR_ANY;
+    sin_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    memset(&(sin_addr.sin_zero), '\0', 8);
 
     if(bind(sock, (struct sockaddr *)&sin_addr, sizeof(struct sockaddr_in)) < 0) {
       	perror("Error binding stream socket");
       	exit(1);
     }
+
+    typedef struct recvd {
+    	int type;
+    	int p_num;
+    	float time;
+    } recv_msg_t;
+
+    recv_msg_t recv_msg;
+    bzero((char*)&recv_msg, sizeof(recv_msg));
 
     fd_set read_set;
 	clock_t start;
@@ -269,24 +283,39 @@ int main(int argc, char *argv[]) {
 		}
 		/* Should I do this before or after the FD_ISSET check? */
 		elapsed_time = (float) (clock() - start)/CLOCKS_PER_SEC;
-		if(NULL != head) {
-			head->time -= elapsed_time;
-			if (head->time <= 0) {
-				printf("%s%d%s\n", "Packet number: ", head->p_num, " has timed out.");
-				remove_node(head->p_num, &head);
-				printf("%s\n", "Status of the delta timer list:");
-				print_full_list(head);
-				printf("\n\n");
-			}
-		}
+
+		printf("%s%ld\n", "------------------CURRENT TIME----------------", 
+			clock()/CLOCKS_PER_SEC);
+
+		// if(NULL != head) {
+		// 	head->time -= elapsed_time;
+		// 	printf("%s%.2f%s%.2f\n", "The head's time ", head->time, " Elapsed time: ", elapsed_time);
+		// 	if (head->time <= 0) {
+		// 		printf("%s%d%s\n", "Packet number: ", head->p_num, " has timed out.");
+		// 		remove_node(head->p_num, &head);
+		// 		printf("%s\n", "Status of the delta timer list:");
+		// 		print_full_list(head);
+		// 		printf("\n\n");
+		// 	}
+		// }
 			
 		if(FD_ISSET(sock, &read_set)) {
-				
-				//check received packet
-				//do apprpriate action
-
+			if(recvfrom(sock, (char*)&recv_msg, sizeof(recv_msg), 0, NULL, NULL) < 0) {
+				perror("There was an error receiving from the driver");
+				exit(1);
+			}
+			if (recv_msg.type == 0) {
+				printf("%s%.2f%s%d\n", "Received add request ", recv_msg.time, ", ", recv_msg.p_num);
+				add_node(recv_msg.time, recv_msg.p_num);
+			} else if (recv_msg.type == 1) {
+				printf("%s%d\n", "Received delete request ", recv_msg.p_num);
+				delete_node(recv_msg.p_num);
+			}
+			bzero((char*)&recv_msg, sizeof(recv_msg));
+			printf("%s\n", "Just serviced message");
 		} 
-	}//end for
 
+	}//end for
+	close(sock);
 	return 0;
 }
