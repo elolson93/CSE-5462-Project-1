@@ -22,7 +22,10 @@ typedef struct tcpdHeader {
 	int flag;
 	size_t maxData;
 	char body[MSS];
+	int bytes_to_read;
 } tcpdHeader;
+
+tcpdHeader clientHeader;
 
 /* Prototypes for each function */ 
 ssize_t SEND(int socket, const void* buffer, size_t length, int flags);
@@ -51,6 +54,8 @@ int BIND(int socket, struct sockaddr *my_addr, socklen_t addrlen) {
         return bind(socket, (struct sockaddr *)my_addr, addrlen);
 }
 
+	
+
 ssize_t SEND(int socket, const void* buffer, size_t length, int flags) {
 	/* define address of local socket to pass data to */
 	struct sockaddr_in daemon_addr;
@@ -58,13 +63,21 @@ ssize_t SEND(int socket, const void* buffer, size_t length, int flags) {
 	daemon_addr.sin_port = htons(LOCALPORT);
 	daemon_addr.sin_addr.s_addr = INADDR_ANY;
 
-	tcpdHeader clientHeader;
-	clientHeader.flag = 1;
-	strcpy(clientHeader.body, buffer);
 
+	clientHeader.flag = 1;
+	clientHeader.bytes_to_read = length;
+	bcopy(buffer,clientHeader.body, length);
+
+	//printf("Body sent: %s\n", clientHeader.body);
+	//sleep(0.00001);
 	/* pass data to local socket in tcpd */
-	return sendto(socket, (char *)&clientHeader, sizeof(clientHeader), flags, 
+	ssize_t sent = 0;
+	sent = sendto(socket, (char *)&clientHeader, sizeof(clientHeader), flags, 
 		(struct sockaddr *)&daemon_addr, sizeof(daemon_addr));
+	
+	//free(*clientHeader);
+	//nanosleep(0.1);
+	return sent;
 }
 
 ssize_t RECV(int socket, void* buffer, size_t length, int flags) {
@@ -90,5 +103,6 @@ ssize_t RECV(int socket, void* buffer, size_t length, int flags) {
 	/* RECEIVE DATA */
 	size_t temp;
 	temp = recvfrom(socket, buffer, length, 0, NULL, NULL);
+	nanosleep(10000);
 	return temp;
 }

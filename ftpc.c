@@ -59,7 +59,7 @@ int main(int argc, char *argv[]) {
   	}
   
   	/* Open file for transfer */
-  	FILE *fp = fopen(file_name,"r");
+  	FILE *fp = fopen(file_name,"rb");
   	if(fp==NULL) 
 	{
     		perror("Error opening file");
@@ -72,31 +72,44 @@ int main(int argc, char *argv[]) {
 	rewind(fp);
         
 	/* Send file size in 4 bytes */
-	SEND(sock, &num_bytes, 4, 0);
-	printf("Sent: %i bytes.\n\n", num_bytes);
-	sleep(0.1);
+	SEND(sock, &num_bytes, MSS, 0);
+	printf("Sent size: %i bytes\n\n", num_bytes);
+	//sleep(0.1);
 	
 
 	/* Send file name in 20 bytes */
-	SEND(sock, file_name, 20, 0);
-	printf("Sent: %s.\n\n", file_name);
-	sleep(0.1);
+	SEND(sock, file_name, MSS, 0);
+	printf("Sent name: %s\n\n", file_name);
+	//sleep(0.1);
 
-	while(1)
+	//printf("Size real: %i", num_bytes);
+	//char num_str[4];
+	//sprintf(num_str, "%d", num_bytes);
+	//printf("Size of %s: %zu",num_str, sizeof(num_str));
+
+	//printf("Size of name: %i", sizeof(file_name));
+	bzero(buf, sizeof(buf));
+	int num_sent_total = 0;
+	int num_sent = 0;
+	while((num_read = fread(buf,1,sizeof(buf), fp)) > 0)
 	{
+		
+		//printf("Read in: \n%s\n", buf);
 	  	/* Read file in chunks of 512 bytes */
-		num_read = fread(buf,1,MSS,fp);
+		//num_read = fread(buf,1,MSS,fp);
 
 		/* If read was successful send data. */
-		if(num_read > 0)
-		{
-		   	SEND(sock, buf, num_read, 0);
-			printf("Sent: %s\n\n", buf);
-			sleep(0.1);
-		}
+		/*if(num_read > 0)
+		{*/
+		num_sent = SEND(sock, buf, num_read, 0);
+		num_sent_total += num_sent;
+		//printf("Bytes Sent: %i\n", num_sent_total); 
+		//printf("Sent message:\n%s\n\n", buf);
+		//sleep(0.0000001);
+		/*}*/
 
 		/* Handle end of file or read error */
-		if (num_read < MSS)
+		/*if (num_read < MSS)
 		{
 		  	if (feof(fp)) 
 		  	{
@@ -108,6 +121,7 @@ int main(int argc, char *argv[]) {
 				exit(1);
 		  	}
 		}
+		bzero(buf, sizeof(buf));*/
 	}
 
 	printf("%s\n", "File Sent.");

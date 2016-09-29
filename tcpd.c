@@ -13,22 +13,37 @@
 #include <ctype.h>
 #include <arpa/inet.h>
 #include <netdb.h>
+/* CRC algorithm used from http://www.barrgroup.com/Embedded-Systems/How-To/CRC-Calculation-C-Code */
+#include "crc/crc.c"
+#include "crc/crc.h"
 #define MSS 1000
 #define LOCAL_PORT 9999
 #define TROLL_PORT 8888
 #define LOCAL_ADDRESS "127.0.0.1"
 
+//packet struct
+typedef struct Packet {
+	char body[MSS];
+	int bytes_to_read;
+	//add additional vars here
+} Packet;
+
 //Troll message struct
 typedef struct MyMessage {
 	struct sockaddr_in msg_header;
-	char body[MSS];
+	struct Packet msg_pack;
+	int chksum;
+
+	
 } MyMessage;
+
 
 //Local to tcpd message struct
 typedef struct tcpdHeader {
 	int flag;
 	size_t maxData;
 	char body[MSS];
+	int bytes_to_read;
 } tcpdHeader;
 
 /* for lint */
@@ -56,11 +71,15 @@ int main(int argc, char *argv[])
 		int troll_sock;	/* a socket for sending messages to the local troll process */
 		int local_sock; /* a socket to communicate with the client process */
 		MyMessage message; /* Packet sent to troll process */
+		Packet packet;
 		tcpdHeader tcpd_head;/* Packet type from client */
 		struct hostent *host; /* Hostname identifier */
 		struct sockaddr_in trolladdr, destaddr, localaddr, clientaddr; /* Addresses */
-		fd_set troll_selectmask;
-		fd_set client_selectmask;
+		fd_set selectmask;
+		char buffer[MSS] = {0};
+		int amtFromClient = 0;
+		int chksum = 0;
+		int amtToTroll = 0;
 	
 		/* TROLL ADDRESSS */
 		/* this is the addr that troll is running on */
@@ -95,8 +114,7 @@ int main(int argc, char *argv[])
 			perror("totroll socket");
 			exit(1);
 		}
-		FD_ZERO(&troll_selectmask);
-		FD_SET(troll_sock, &troll_selectmask);
+		
 
 		bzero((char *)&localaddr, sizeof localaddr);
 		localaddr.sin_family = AF_INET;
@@ -114,8 +132,7 @@ int main(int argc, char *argv[])
 			perror("client socket");
 			exit(1);
 		}
-		FD_ZERO(&client_selectmask);
-		FD_SET(local_sock, &client_selectmask);
+		
 		
 
 		bzero((char *)&clientaddr, sizeof clientaddr);
@@ -128,40 +145,59 @@ int main(int argc, char *argv[])
 		}
 
 		/* SEND DATA TO TROLL */
-	
-		for(;;) {
-			// Block until input arrives on one or more sockets
-			if(select(FD_SETSIZE, &client_selectmask, NULL, NULL, NULL) < 0) {
-			    fprintf(stderr, "%s\n", "There was an issue with select()");
-			    exit(1);
-			}
 
-			if (FD_ISSET(local_sock, &client_selectmask)) {
-				int amtFromClient = 0;
+		//for checksum		
+		crcInit();
+		
+		FD_ZERO(&selectmask);
+		FD_SET(local_sock, &selectmask);
+
+		bzero ((char *)&packet, sizeof packet);
+		bzero ((char *)&message, sizeof message);
+		bzero ((char *)&tcpd_head, sizeof tcpd_head);
+		int total = 0;
+		for(;;) {
+			if (FD_ISSET(local_sock, &selectmask)) {
+				amtFromClient = 0;
 				//receive data from the local socket
 				amtFromClient = recvfrom(local_sock, (char *)&tcpd_head, sizeof(tcpd_head), 0, NULL, NULL);
 
 				if (tcpd_head.flag == 1) {
 					//forward the data to remote machine via troll
-					printf("Received message from client: %s\n\n", tcpd_head.body);
+					printf("Received message from client.\n");
+					bcopy(tcpd_head.body,buffer, tcpd_head.bytes_to_read);
+				
+					//create packet
+					bcopy(buffer,packet.body,tcpd_head.bytes_to_read);
+					packet.bytes_to_read = tcpd_head.bytes_to_read;
 
-					//create troll message
-					strcpy(message.body,tcpd_head.body);
+					//create troll wrapper
+					message.msg_pack = packet;
 					message.msg_header = destaddr;
 
-					int amtToTroll = 0;
-					
+				
+					chksum = crcFast((char *)&message.msg_pack,sizeof(message.msg_pack));
+					message.chksum = chksum;
+					printf("Checksum of packet: %X\n", chksum);
+
 					amtToTroll = sendto(troll_sock, (char *)&message, sizeof message, 0, (struct sockaddr *)&trolladdr, sizeof trolladdr);
-					printf("Sent message to troll: %s\n\n", message.body);
+					printf("Sent message to troll.\n\n");
 					if (amtToTroll != sizeof message) {
 						perror("totroll sendto");
 						exit(1);
 					}
-					
+					total += amtToTroll;
+					//printf("Sent byes: %i\n", total);
+					bzero ((char *)&packet, sizeof packet);
+					bzero ((char *)&message, sizeof message);
+					bzero ((char *)&tcpd_head, sizeof tcpd_head);
+					//nanosleep(1);
 			     	} else {
 					fprintf(stderr, "%s\n", "Message from unknown source");
 				 	exit(1);
 			   	} 
+			FD_ZERO(&selectmask);
+			FD_SET(local_sock, &selectmask);
 			} 
 
 		}
@@ -184,7 +220,11 @@ int main(int argc, char *argv[])
 		struct sockaddr_in trolladdr, localaddr, serveraddr; /* Addresses */
 		struct hostent *host; /* Hostname identifier */
 		int n; /* for data recieved */
-		fd_set troll_selectmask;
+		fd_set selectmask;
+		char buffer[MSS] = {0};
+		int amtToServer = 0;
+		int chksum = 0;
+		int len = 0;
 		
 		/* SOCKET FROM TROLL */
 
@@ -200,8 +240,7 @@ int main(int argc, char *argv[])
 			perror("client bind");
 			exit(1);
 		}
-		FD_ZERO(&troll_selectmask);
-		FD_SET(troll_sock, &troll_selectmask);
+		
 
 		/* SOCKET TO SERVER */
 		/* This creates a socket to communicate with the local troll process */
@@ -220,14 +259,18 @@ int main(int argc, char *argv[])
 
 		/* RECEIVE DATA */
 
+		//for checksum		
+		crcInit();
+
+		FD_ZERO(&selectmask);
+		FD_SET(troll_sock, &selectmask);
+
+		bzero ((char *)&buffer, sizeof buffer);
+		bzero ((char *)&message, sizeof message);
+		int total = 0;
 		for(;;) {
-			//block until data arrives on troll port
-			if(select(FD_SETSIZE, &troll_selectmask, NULL, NULL, NULL) < 0) {
-			    fprintf(stderr, "%s\n", "There was an issue with select()");
-			    exit(1);
-			}
-			if (FD_ISSET(troll_sock, &troll_selectmask)) {
-				int len = sizeof trolladdr;
+			if (FD_ISSET(troll_sock, &selectmask)) {
+				len = sizeof trolladdr;
 	
 				/* read in one message from the troll */
 				n = recvfrom(troll_sock, (char *)&message, sizeof message, 0,
@@ -236,24 +279,39 @@ int main(int argc, char *argv[])
 					perror("fromtroll recvfrom");
 					exit(1);
 				}
-				printf("Recieved message from troll: %s\n\n", message.body);
+				printf("Recieved message from troll.\n");
+				//printf("Message body: %s\n", message.msg_pack.body);
+
+				chksum = crcFast((char *)&message.msg_pack,sizeof(message.msg_pack));
+				printf("Checksum of message rec: %X\n", chksum);
+				if (chksum != message.chksum) {
+					printf("CHECKSUM ERROR: Expected: %X Actual: %X\n", message.chksum, chksum);
+				}
+
+				
 
 				//forward to server
-				int amtToServer = 0;
-				char body[MSS] = {0};
-				strcpy(body, message.body);
+				amtToServer = 0;
+				
+				bcopy(message.msg_pack.body,buffer,message.msg_pack.bytes_to_read);
 					
-				amtToServer = sendto(local_sock, (char *)&body, sizeof body, 0, (struct sockaddr *)&destaddr, sizeof destaddr);
-				printf("Sent message to server: %s\n\n", body);
-				if (amtToServer != sizeof body) {
+				amtToServer = sendto(local_sock, (char *)&buffer, message.msg_pack.bytes_to_read, 0, (struct sockaddr *)&destaddr, sizeof destaddr);
+				printf("Sent message to server.\n\n");
+				if (amtToServer != message.msg_pack.bytes_to_read) {
 					perror("totroll sendto");
 					exit(1);
 				}
+				total += n;
+				//printf("Sent byes: %i\n", total);
+				bzero ((char *)&buffer, sizeof buffer);
+				bzero ((char *)&message, sizeof message);
 			}
 			
 		
-		
+			FD_ZERO(&selectmask);
+			FD_SET(troll_sock, &selectmask);
 		}
 	}
     
 }
+
