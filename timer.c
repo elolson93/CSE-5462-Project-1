@@ -34,7 +34,6 @@ typedef struct timer_node {
 /* These are the prototypes for the functions defined within this file */
 void delete_node(int packet);
 void add_node(float seconds, int packet);
-void update_times(timer_node_t* start, int val, char op);
 int insert_node(timer_node_t** head, timer_node_t* node);
 int remove_node(int del_val, timer_node_t** head);
 void print_full_list(timer_node_t* head);
@@ -57,7 +56,7 @@ void destroy_node(timer_node_t* node) {
 
 /* This method creates a new node for our linked list with the supplied criteria.
    It returns a pointer to the newly created node */
-timer_node_t* create_node(float time, int port/*, int p_num*/) {
+timer_node_t* create_node(float time, int p_num/*, int port*/) {
 	timer_node_t* node = (timer_node_t*)malloc(sizeof(timer_node_t));
 	if (NULL == node) {
 		printf("%s\n", "ERROR: Failed to allocate memory for a new timer node");
@@ -65,8 +64,8 @@ timer_node_t* create_node(float time, int port/*, int p_num*/) {
 		node->next = NULL;
 		node->prev = NULL;
 		node->time = time;
-		node->p_num = port;
-		//node->p_num = p_num;
+		node->p_num = p_num;
+		//node->port = port;
 	}
 	return node;
 }
@@ -84,38 +83,6 @@ void print_full_list(timer_node_t* list) {
 			list = list->next;
 		}
 	}
-}
-
-
-
-/* This method updates the time values for each node in the linked list whenever
-   an addition to or removal from the list is made */
-void update_times(timer_node_t* list, int val, char op) {
-	if (NULL == list) {
-		return;
-	}
-	if (op == '+') {
-		list->time += val; 
-	} else if (op == '-') {
-		list->time -= val;
-	} else {
-		printf("%s\n", "ERROR: unrecognized operation.");
-		return;
-	}
-	// while (NULL != list) {
-	// 	//printf("%s\n", "In the update while");
-	// 	if (op == '+') {
-	// 		list->time += val; 
-	// 	} else if (op == '-') {
-	// 		//`printf("%s\n", "In the minus");
-	// 		list->time -= val;
-	// 	} else {
-	// 		printf("%s\n", "ERROR: unrecognized operation.");
-	// 		return;
-	// 	}
-	// 	list = list->next;
-	// 	//printf("%s\n", "At the end of the update while");
-	// }
 }
 
 
@@ -145,14 +112,12 @@ int insert_node(timer_node_t** head, timer_node_t* node) {
 	} 
 	//Insert as a new head node
 	if (NULL == prev_node) {
-		//new head node
 		curr_node->prev = node;
 		node->next = curr_node;
 		*head = node;
-		// if (NULL != node->next) {
-		// 	node->next->time -= node->time;
-		// }
-		update_times(node->next, node->time, '-');
+		if (NULL != node->next) {
+			node->next->time -= node->time;
+		}
 		return 1;
 	} 
 	//Insert between two nodes
@@ -160,10 +125,9 @@ int insert_node(timer_node_t** head, timer_node_t* node) {
 	curr_node->prev = node;
 	node->prev = prev_node;
 	node->next = curr_node;
-	// if (NULL != node->next) {
-	// 	node->next->time -= node->time;
-	// }
-	update_times(node->next, node->time, '-');
+	if (NULL != node->next) {
+		node->next->time -= node->time;
+	}
 	return 1;
 }
 
@@ -186,11 +150,9 @@ int remove_node(int del_val, timer_node_t** head) {
 		if (NULL != *head) {
 			(*head)->prev = NULL;
 		}
-		printf("%s\n", "HERE");
-		// if (NULL != node->next) {
-		// 	node->next->time += node->time;
-		// }
-		update_times(*head, trash->time, '+');
+		if (NULL != (*head)) {
+			(*head)->time += trash->time;
+		}
 		destroy_node(trash);
 		return 1;
 	}
@@ -211,10 +173,9 @@ int remove_node(int del_val, timer_node_t** head) {
 	if (NULL != tracker->next) {
 		(tracker->next)->prev = tracker->prev;
 	}
-	// if (NULL != node->next) {
-	// 	node->next->time += node->time;
-	// }
-	update_times(tracker->next, tracker->time, '+');
+	if (NULL != tracker->next) {
+		tracker->next->time += tracker->time;
+	}
 	destroy_node(trash);
 	return 1;
 }
@@ -264,6 +225,7 @@ void delete_node(int packet) {
 int main(int argc, char *argv[]) {
 	printf("Timer process booting up...\n\n");
 
+	/* Create a socket for the timer to listen on */
 	int sock;
 	struct sockaddr_in sin_addr;
 
@@ -292,7 +254,9 @@ int main(int argc, char *argv[]) {
     recv_msg_t recv_msg;
     bzero((char*)&recv_msg, sizeof(recv_msg));
 
-    fd_set read_set;
+     fd_set read_set;
+
+    /* Create the variables that will be used for time keeping */
     time_t start_time, end_time, global_start_time;
 	struct timeval wait_timer;
 	wait_timer.tv_sec = WAIT_TIME;
@@ -307,7 +271,7 @@ int main(int argc, char *argv[]) {
 			fprintf(stderr, "%s\n", "There was an issue with select()");
 			exit(1);
 		}
-		/* Should I do this before or after the FD_ISSET check? */
+
 		time(&end_time);
 		printf("%s%f\n", "------------------CURRENT TIME----------------", 
 			difftime(end_time, global_start_time));
@@ -318,6 +282,7 @@ int main(int argc, char *argv[]) {
 			if (head->time <= 0) {
 				printf("%s%d%s\n", "Packet number: ", head->p_num, " has timed out.");
 				remove_node(head->p_num, &head);
+				printf("%s\n", "Timed out node removed.");
 				printf("%s\n", "Status of the delta timer list:");
 				print_full_list(head);
 				printf("\n\n");
