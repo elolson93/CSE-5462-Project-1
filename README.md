@@ -24,9 +24,18 @@ Troll will then forward the packets to a daemon running on the remote
 machine. Finally the remote daemon will send the packets to the remote
 server process.
 
+###Checkpoint 1 Updates:
+
+The checksum of packetes sent/received on the tcpd daemon on calculated. If 
+they do not match the tcpd server prints an error.
+
+The timer and driver processes work as required.
+
 -----------------------------------------------------------------------------
 
 ##2. INSTALLATION
+
+###File transfer
 
 Ensure that 'ftpc.c', 'ftps.c', 'tcpd.c' and 'Makefile' are located in
 your desired installation directory. 
@@ -39,10 +48,15 @@ the installation directory.
 
 Ensure that the Troll package is installed in the installation directory.
 
+###Timer and driver
+
+Type 'make timer' to compile the timer and driver programs.
+
 -----------------------------------------------------------------------------
 
 ##3. USAGE
 
+###File Transer
 Make note of the location of the file you wish to transfer. In the terminal,
 navigate to the location of that the program was installed above. 
 
@@ -86,6 +100,21 @@ the local file on the client machine you wish to send to the server.
 
 The file will be sent from the client to the local tcpd, local tcpd to troll,
 troll to remote tcpd, and finally remote tcpd to the server.
+
+If any packages are garbled, a checksum error will be displayed.
+
+###Timer and driver
+
+The driver program sends start timer and cancel timer requests to the timer program.
+The timer program infinitely listens for requests from the driver program.
+The timer program maintains a delta timer, and upon receiving a start timer request
+from the driver, inserts a new node into the appropriate location in the delta timer
+list. Upon receiving a cancel timer request from the driver, the timer searches for the
+node to delete in the delta timer list and removes it if it is found or prints an error
+message if it is not. The timer waits a certain amount of time to receive a request from
+the driver. If that wait time times out, the timer reduces the amount of time in the head
+of the delta timer list by the amount of elapsed time. If the time for the head becomes
+less than or equal to 0, the head is removed from the list.
 
 -----------------------------------------------------------------------------
 
