@@ -1,24 +1,12 @@
 /*
 / Eric Olson and James Baker
 / CSE 5462 Network Programming
-/ Lab 3 - September 15, 2016
+/ Project 1 - Checkpoint 1 - September 29, 2016
 / 
 / This file contains our implementations of a TCP server.
 */
 
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <sys/stat.h>
-#include <netinet/in.h>
-#include <netdb.h>
-#include <stdio.h>
-#include <string.h>
-#include <strings.h>
-#include <stdlib.h>
-#include <unistd.h>
-#define LOCALPORT 9999
-#define LOCALADDRESS "127.0.0.1"
-#define MSS 1000
+#include "header.h"
 
 int main(int argc, char* argv[]) {
 	
@@ -38,10 +26,9 @@ int main(int argc, char* argv[]) {
     		perror("Error opening socket");
     		exit(1);
     	}
-
     	sin_addr.sin_family = AF_INET;
     	sin_addr.sin_port = htons(LOCALPORT);
-    	sin_addr.sin_addr.s_addr = INADDR_ANY;//inet_addr(LOCALADDRESS);
+    	sin_addr.sin_addr.s_addr = INADDR_ANY;
 
     	/* bind socket name to socket */
     	if(BIND(sock, (struct sockaddr *)&sin_addr, sizeof(struct sockaddr_in)) < 0) {
@@ -49,11 +36,8 @@ int main(int argc, char* argv[]) {
       		exit(1);
     	}
   
-	/* listen for socket connection and set max opened socket connetions to 5 */
-	//listen(sock, 5);
-  
   	/* accept a connection in socket msgsocket */ 
-  	if((sock = ACCEPT(sock, (struct sockaddr *)NULL, (socklen_t *)NULL)) == -1) { 
+  	if((ACCEPT(sock, (struct sockaddr *)NULL, (socklen_t *)NULL)) == -1) { 
     		perror("Error connecting stream socket");
     		exit(1);
   	}
@@ -87,8 +71,10 @@ int main(int argc, char* argv[]) {
   	int amtReadTotal = 0;
   	int amtRead = 0;
   	while (amtReadTotal < fileSize) { 
-  		amtRead = RECV(sock, readBuffer, sizeof(readBuffer), 0);
+		/* Receive from server side tcpd */
+  		amtRead = RECV(sock, readBuffer, sizeof(readBuffer), MSG_WAITALL);
 		
+		/* track byes recieved */
   		amtReadTotal += amtRead;
   		if (amtRead < 0) {
   			fprintf(stderr, "%s\n\n", "Error reading from the connection stream. Server terminating");
@@ -97,19 +83,15 @@ int main(int argc, char* argv[]) {
 
   		/* write the received data to the output file */
   		fwrite(readBuffer, 1, amtRead, output);
-		//fflush(output);
-		bzero(readBuffer, sizeof(readBuffer));
-		amtRead = 0;
-		//printf("Bytes Recieved: %i\n", amtReadTotal);
   	}
 
 	printf("Recieved file.\n");
   
   	/* close the output file and connections */
-  	//close(msgsock);
   	close(sock);
   	fclose(output);
 
   	return 0;
 }
+
 
