@@ -20,7 +20,6 @@
 #define LOCALADDRESS "127.0.0.1"
 #define MSS 1000
 
-
 int main(int argc, char* argv[]) {
 	
     	int sock;                     /* initial socket descriptor */
@@ -89,7 +88,7 @@ int main(int argc, char* argv[]) {
   	int amtRead = 0;
   	while (amtReadTotal < fileSize) { 
   		amtRead = RECV(sock, readBuffer, sizeof(readBuffer), 0);
-		printf("Received message.\n\n");
+		
   		amtReadTotal += amtRead;
   		if (amtRead < 0) {
   			fprintf(stderr, "%s\n\n", "Error reading from the connection stream. Server terminating");
@@ -98,6 +97,10 @@ int main(int argc, char* argv[]) {
 
   		/* write the received data to the output file */
   		fwrite(readBuffer, 1, amtRead, output);
+		//fflush(output);
+		bzero(readBuffer, sizeof(readBuffer));
+		amtRead = 0;
+		//printf("Bytes Recieved: %i\n", amtReadTotal);
   	}
 
 	printf("Recieved file.\n");
@@ -109,3 +112,4 @@ int main(int argc, char* argv[]) {
 
   	return 0;
 }
+
