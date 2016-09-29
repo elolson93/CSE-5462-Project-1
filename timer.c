@@ -94,21 +94,28 @@ void update_times(timer_node_t* list, int val, char op) {
 	if (NULL == list) {
 		return;
 	}
-
-	while (NULL != list) {
-		//printf("%s\n", "In the update while");
-		if (op == '+') {
-			list->time += val; 
-		} else if (op == '-') {
-			//`printf("%s\n", "In the minus");
-			list->time -= val;
-		} else {
-			printf("%s\n", "ERROR: unrecognized operation.");
-			return;
-		}
-		list = list->next;
-		//printf("%s\n", "At the end of the update while");
+	if (op == '+') {
+		list->time += val; 
+	} else if (op == '-') {
+		list->time -= val;
+	} else {
+		printf("%s\n", "ERROR: unrecognized operation.");
+		return;
 	}
+	// while (NULL != list) {
+	// 	//printf("%s\n", "In the update while");
+	// 	if (op == '+') {
+	// 		list->time += val; 
+	// 	} else if (op == '-') {
+	// 		//`printf("%s\n", "In the minus");
+	// 		list->time -= val;
+	// 	} else {
+	// 		printf("%s\n", "ERROR: unrecognized operation.");
+	// 		return;
+	// 	}
+	// 	list = list->next;
+	// 	//printf("%s\n", "At the end of the update while");
+	// }
 }
 
 
@@ -116,6 +123,7 @@ void update_times(timer_node_t* list, int val, char op) {
 /* This function inserts the supplied node into the linked list. It returns 1
    for a successful insertion and 0 otherwise */
 int insert_node(timer_node_t** head, timer_node_t* node) {
+	//If the list is empty
 	if (NULL == *head) {
 		*head = node;
 		return 1;
@@ -129,26 +137,32 @@ int insert_node(timer_node_t** head, timer_node_t* node) {
 		prev_node = curr_node;
 		curr_node = curr_node->next;
 	}
-	
+	//Insert at the end of the list
 	if (NULL == curr_node) {
 		prev_node->next = node;
 		node->prev = prev_node;
 		return 1;
 	} 
-	
+	//Insert as a new head node
 	if (NULL == prev_node) {
 		//new head node
 		curr_node->prev = node;
 		node->next = curr_node;
 		*head = node;
+		// if (NULL != node->next) {
+		// 	node->next->time -= node->time;
+		// }
 		update_times(node->next, node->time, '-');
 		return 1;
 	} 
-	
+	//Insert between two nodes
 	prev_node->next = node;
 	curr_node->prev = node;
 	node->prev = prev_node;
 	node->next = curr_node;
+	// if (NULL != node->next) {
+	// 	node->next->time -= node->time;
+	// }
 	update_times(node->next, node->time, '-');
 	return 1;
 }
@@ -158,16 +172,24 @@ int insert_node(timer_node_t** head, timer_node_t* node) {
 /* This function removes a node with a particular packet number from the list.
    It returns 1 for a successful removal and 0 otherwise */
 int remove_node(int del_val, timer_node_t** head) {
+	//The list is empty
 	if (NULL == *head) {
 		printf("%s\n", "ERROR: The list is empty. Cannot delete specified node.");
 		return 0;
 	}
-
 	timer_node_t* trash = NULL;
+	//The node to be removed is the head node
 	if ((*head)->p_num == del_val) {
 		trash = *head;
 		*head = (*head)->next;
-		(*head)->prev = NULL;
+		//Just in case we have removed the only node in the list
+		if (NULL != *head) {
+			(*head)->prev = NULL;
+		}
+		printf("%s\n", "HERE");
+		// if (NULL != node->next) {
+		// 	node->next->time += node->time;
+		// }
 		update_times(*head, trash->time, '+');
 		destroy_node(trash);
 		return 1;
@@ -177,7 +199,7 @@ int remove_node(int del_val, timer_node_t** head) {
 	while (NULL != tracker && tracker->p_num != del_val) {
 		tracker = tracker->next;
 	}
-
+	//The node wasn't found
 	if (NULL == tracker) {
 		printf("%s%d%s\n", "ERROR: The node with packet number: ", del_val,  
 			" was never found. Failed to delete.");
@@ -189,6 +211,9 @@ int remove_node(int del_val, timer_node_t** head) {
 	if (NULL != tracker->next) {
 		(tracker->next)->prev = tracker->prev;
 	}
+	// if (NULL != node->next) {
+	// 	node->next->time += node->time;
+	// }
 	update_times(tracker->next, tracker->time, '+');
 	destroy_node(trash);
 	return 1;
@@ -257,6 +282,7 @@ int main(int argc, char *argv[]) {
       	exit(1);
     }
 
+    //The definition of the message received by the driver
     typedef struct recvd {
     	int type;
     	int p_num;
@@ -267,37 +293,36 @@ int main(int argc, char *argv[]) {
     bzero((char*)&recv_msg, sizeof(recv_msg));
 
     fd_set read_set;
-	clock_t start;
-	float elapsed_time = 0.0;
+    time_t start_time, end_time, global_start_time;
 	struct timeval wait_timer;
 	wait_timer.tv_sec = WAIT_TIME;
 	wait_timer.tv_usec = 0;
 
+	time(&global_start_time);
 	for(;;) {
 		FD_ZERO(&read_set);
     	FD_SET(sock, &read_set);
-		start = clock();
+		time(&start_time);
 		if (select(FD_SETSIZE, &read_set, NULL, NULL, &wait_timer) < 0) {
 			fprintf(stderr, "%s\n", "There was an issue with select()");
 			exit(1);
 		}
 		/* Should I do this before or after the FD_ISSET check? */
-		elapsed_time = (float) (clock() - start)/CLOCKS_PER_SEC;
+		time(&end_time);
+		printf("%s%f\n", "------------------CURRENT TIME----------------", 
+			difftime(end_time, global_start_time));
 
-		printf("%s%ld\n", "------------------CURRENT TIME----------------", 
-			clock()/CLOCKS_PER_SEC);
-
-		// if(NULL != head) {
-		// 	head->time -= elapsed_time;
-		// 	printf("%s%.2f%s%.2f\n", "The head's time ", head->time, " Elapsed time: ", elapsed_time);
-		// 	if (head->time <= 0) {
-		// 		printf("%s%d%s\n", "Packet number: ", head->p_num, " has timed out.");
-		// 		remove_node(head->p_num, &head);
-		// 		printf("%s\n", "Status of the delta timer list:");
-		// 		print_full_list(head);
-		// 		printf("\n\n");
-		// 	}
-		// }
+		if(NULL != head) {
+			head->time -= difftime(end_time, start_time);
+			printf("%s%.2f%s%.2f\n", "The head's time ", head->time, " Elapsed time: ", difftime(end_time, start_time));
+			if (head->time <= 0) {
+				printf("%s%d%s\n", "Packet number: ", head->p_num, " has timed out.");
+				remove_node(head->p_num, &head);
+				printf("%s\n", "Status of the delta timer list:");
+				print_full_list(head);
+				printf("\n\n");
+			}
+		}
 			
 		if(FD_ISSET(sock, &read_set)) {
 			if(recvfrom(sock, (char*)&recv_msg, sizeof(recv_msg), 0, NULL, NULL) < 0) {

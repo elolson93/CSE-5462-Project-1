@@ -56,6 +56,7 @@ int main(int argc, char* argv[]) {
 	server_addr.sin_addr.s_addr = inet_addr(argv[1]); 
 	memset(&(server_addr.sin_zero), '\0', 8); // zero the rest of the struct 
 
+	//starttimer(8.0,1, sock, server_addr);
 	starttimer(20.0,1, sock, server_addr);
 	printf("%s\n", "Sent One");
 
