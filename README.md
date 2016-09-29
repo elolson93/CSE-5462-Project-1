@@ -1,4 +1,4 @@
-#CSE 5462 Lab 3
+#CSE 5462 Project 1
 
 Authors: James Baker, Eric Olson
 
